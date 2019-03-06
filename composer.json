@@ -1,0 +1,14 @@
+{
+    "name": "kewo/center",
+    "description": "课课窝 管理中心",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Kewo Center",
+            "email": "fangzheng@kewo.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
