@@ -217,7 +217,7 @@ class Center
         $time = time();
         $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
+        $data['token']=md5(md5($this->appsecret).$time).$time;
 
         $data['username']=$username;
         $data['password']=md5($password);
