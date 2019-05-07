@@ -15,7 +15,7 @@ class Center
     private $Filename = "./kewolog.txt"; //日志文件
     private $Handle;
     private $batch; //时间戳
-    private $baseUrl = "http://ke.test.hw2006.org/manageapi/v1/"; //路由请求基础路由
+    private $baseUrl = "http://console.kewo.com/manageapi/v1/"; //路由请求基础路由
 
     public function __construct($appid='',$appsecret='',$app='',$role='')
     {
@@ -123,35 +123,67 @@ class Center
      * @param url 请求路径
      * @param data 发送数据
      * @param header 请求头部信息
-     * @param post 请求方式  默认为1 post请求   0为get 请求
+     * @param post 请求方式  默认为1 1为post请求   0为get 请求
      */
-    public function curl_post($url, $data=[], $header, $post = 1)
+    public function curl($url, $data=[], $header, $post = 1)
     {
+        
+        if($post==1){
+           $result= $this->curl_post($url, $data,$header);
+        }else{
+           $url.='?'.http_build_query($data);  
+           $result= $this->curl_get($url,$header);
+        }
+        return $result;
+    }
+    /**
+    * curl请求
+     * @param url 请求路径
+    */
+    function curl_post($url, $postFields,$header) {
+    //初始化curl
         //初始化curl
         $ch = curl_init();
         //参数设置
-        if ($post) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        } else {
-            $url = $url.'?'.http_build_query($data);
-        }
         curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_ENCODING, "");
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
+       
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postFields));
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_HEADER, 0);
-        curl_setopt($ch, CURLOPT_POST, $post);
         
-
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
         $result = curl_exec($ch);
+        
         //连接失败
         if ($result == false) {
             $result = "{\"errcode\":\"1001\",\"errmsg\":\"网络错误\"}";
         }
-
         curl_close($ch);
-        return $result;
+        
+        return $result;   
+        
+    }
+    /**
+     * curl请求
+     * 
+     * @return null
+     */
+    function curl_get($url,$header) {
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_TIMEOUT, 500);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($curl, CURLOPT_URL, $url);
+        
+        $res = curl_exec($curl);
+       
+        curl_close($curl);
+        return $res;
     }
 
     /**
@@ -193,6 +225,9 @@ class Center
 
     /**
      * 账号密码登录
+     * 
+     * @param username String	kewo （用户名）
+     * @param password	String	523d47es5s4df2s8ef3sd2fd1d48rsde (md5加密后的小写32位值)
      */
     public function loginByAccount($username,$password,$role=3,$version=1)
     {
@@ -217,7 +252,7 @@ class Center
         $time = time();
         $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5(md5($this->appsecret).$time).$time;
+        $data['token']=md5($this->appsecret.$time).$time;
 
         $data['username']=$username;
         $data['password']=md5($password);
@@ -226,7 +261,359 @@ class Center
         $data['type']=1;
 
         // 发送请求
-        $result = $this->curl_post($url, $data, $header, 0);
+        $result = $this->curl($url, $data, $header, 0);
+        $this->showlog("response body = " . $result . "\r\n");
+        $datas = json_decode($result, true);
+
+        return $datas;
+    }
+    
+    /**
+     * 微信登录获取页面
+     * @param type int	1PC 2手机
+     * 
+     */
+    public function loginByWechat($redirectTo='',$type=1,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        if($type==2){
+            $type=4;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        $this->showlog("login by wechat,get login page, request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl."loginIn";
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+
+        //数据
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        
+        $data['role']=$role;
+        $data['type']=3;
+        $data['login']=$type;
+        if($type==4){
+            $data['redirectTo']=$redirectTo;
+        }
+        
+        // 发送请求
+        $result = $this->curl($url, $data, $header, 0);
+        $this->showlog("response body = " . $result . "\r\n");
+        $datas = json_decode($result, true);
+
+        return $datas;
+    }
+    /**
+     * 手机号查重
+     * 
+     * @param mobile  int	手机号 
+     */
+    public function checkMobile($mobile,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        $this->showlog("check mobile,post checkMobile , request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl."signUp";
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+
+        //数据
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        $data['mobile']=$mobile;
+        
+        $data['role']=$role;
+        $data['type']=1;
+
+        // 发送请求
+        $result = $this->curl($url, $data, $header, 1);
+        $this->showlog("response body = " . $result . "\r\n");
+        $datas = json_decode($result, true);
+
+        return $datas;
+    }
+    /**
+     * 手机号注册
+     * @param mobile  int	手机号 
+     *
+     */
+    public function registerByMobile($mobile,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        $this->showlog("register by mobile , request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl."signUp";
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+
+        //数据
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        
+        $data['mobile']=$mobile;
+        $data['role']=$role;
+        $data['type']=2;
+        $data['login']=3;
+
+        // 发送请求
+        $result = $this->curl($url, $data, $header, 1);
+        
+        $this->showlog("response body = " . $result . "\r\n");
+        $datas = json_decode($result, true);
+
+        return $datas;
+    }
+     /**
+     * 微信登录验证
+     * @param verifyCode  string	verifyCode 
+     * @param type        int           type 1电脑 2手机端微信浏览器	 
+     */
+    public function checkLoginByWechat($type=1,$verifyCode,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        $this->showlog("register by checkLoginByWechat , request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl."loginIn";
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+
+        //数据
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        
+        $data['verifyCode']=$verifyCode;
+        $data['role']=$role;
+        $data['type']=3;
+        //$data['login']=$type==1?2:4;
+        $data['login']=2;
+       
+        // 发送请求
+        $result = $this->curl($url, $data, $header, 0);
+       
+        $this->showlog("response body = " . $result . "\r\n");
+        $datas = json_decode($result, true);
+
+        return $datas;
+    }
+     /**
+     *  微信/支付宝 支付
+     * @param  payType  string	 payType  支付方式 默认1 1微信电脑 2微信手机   3支付宝电脑 4支付宝手机 5免费
+     * @param data  array	 数组
+      * @param  type             String         交易类型 NATIVE或JSAPI 默认 NATIVE
+     * @param  body             String         商品描述
+     * @param  usernumber       String         usernumber
+     * @param  out_trade_no     String         商户订单号
+     * @param  total_fee        Int            标价金额 单位为元
+     * @param  spbill_create_ip	 String         终端ip地址
+     * @param  notify_url	 String         支付成功异步通知地址
+     * @param  product_id	 Int            商品id
+     */
+    public function createOrder($payType,$data,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        
+        if($payType==1||$payType==2){
+            $apiUrl='createWxOrder';
+        }elseif($payType==3||$payType==4){
+            $apiUrl='createAliOrder';
+        }else{
+            return false;
+        }
+        $this->showlog("register by ".$apiUrl." , request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl.$apiUrl;
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+        //微信 支付宝
+        switch ($payType) {
+            case 1:
+              $type='NATIVE';  
+              break;
+            case 2:
+              $type='JSAPI';    
+              break; 
+            case 3:
+              $type='PC';  
+              break; 
+            case 4:
+              $type='MOBILE';
+              break; 
+            case 5:
+              $type='';
+              break; 
+            default:
+                return false;
+                break;
+        }
+        
+        //公共参数
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        //接口参数
+        $data['type']=$type;
+        $data['data']=$data;
+        
+        // 发送请求
+        $result = $this->curl($url, $data, $header, 1);
+        
+        $this->showlog("response body = " . $result . "\r\n");
+        
+        $datas = json_decode($result, true);
+       
+        return $datas;
+    }
+     /**
+     * 生成微信支付二维码
+     * @param value   string	 需要生成二维码的内容
+     * @param size    int       图片生成尺寸 默认12
+     * @param margin  int	 图片边距 默认2
+     */
+    public function qr($value,$size,$margin)
+    {
+        $this->showlog("qr by account, request datetime = " . date('y/m/d h:i') . "\n");
+        // 生成请求URL
+        $url = $this->baseUrl."qr?value=".$value."&size=".$size.'&margin='.$margin;
+        return $url;
+    }
+    /*
+     * 查询订单状态
+     * @param getOrder   string	 创建订单返回的 code
+     * 
+     */
+    public function getOrder($number,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        $this->showlog("getOrder , request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl."getOrder";
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+
+        //数据
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        
+        $data['role']=$role;
+        $data['number']=$number;
+        
+        
+        //发送请求
+        $result = $this->curl($url, $data, $header, 0);
+        
+        $this->showlog("response body = " . $result . "\r\n");
+        $datas = json_decode($result, true);
+
+        return $datas;
+    }
+    /*
+     * 同课窝中心同步数据
+     * @param mobile   string	 手机号 
+     * 
+     */
+    public function changeInfo($number,$mobile,$role=3,$version=1)
+    {
+        //鉴权信息验证，对必选参数进行判空。
+        $auth = $this->accAuth();
+        if ($auth != "") {
+            return $auth;
+        }
+        
+        //检测用户角色
+        $role || $role = $this->role;
+        $this->showlog("changeInfo , request datetime = " . date('y/m/d h:i') . "\n");
+
+        // 生成请求URL
+        $url = $this->baseUrl."changeInfo";
+
+        // 生成包头
+        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
+
+        //数据
+        $time = time();
+        $data['appid']=$this->appid;
+        $data['version']=$version;
+        $data['token']=md5($this->appsecret.$time).$time;
+        $data['app']=$this->app;
+        
+        $data['role']=$role;
+        $data['mobile']=$mobile;
+        $data['number']=$number;
+        
+        //发送请求
+        $result = $this->curl($url, $data, $header, 1);
+        
         $this->showlog("response body = " . $result . "\r\n");
         $datas = json_decode($result, true);
 
