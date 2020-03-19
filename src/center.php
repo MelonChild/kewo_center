@@ -8,87 +8,39 @@ namespace Kewo;
 class Center
 {
     private $appid; //
-    private $appsecret;
+    private $noncestr;
     private $app;
     private $role=3;
+    private $key;//
     private $enabeLog = true; //日志开关。可填值：true、
     private $Filename = "./kewolog.txt"; //日志文件
     private $Handle;
     private $batch; //时间戳
-    private $baseUrl = "http://console.kewo.com/manageapi/v1/"; //路由请求基础路由
+    //private $baseUrl = "http://ke.test.hw2006.org/manageapi/v1/"; //路由请求基础路由
+    private $baseUrl = "http://console.kewo.com/api/v1/"; //路由请求基础路由
 
-    public function __construct($appid='',$appsecret='',$app='',$role='')
+    public function __construct($appid='',$app='',$key='',$baseUrl='',$role='')
     {
-        $this->batch = date("YmdHis");
-        $this->appid = $appid;
-        $this->appsecret = $appsecret;
-        $this->app = $app;
-        $this->role = $role;
-        $this->Handle = fopen($this->Filename, 'a');
+        $this->appid    = $appid;
+        $this->noncestr = rand(1000,9999).time();
+        $this->app      = $app;
+        $this->key      = $key;
+        $this->role     = $role??$this->role;
+        $this->Handle   = fopen($this->Filename, 'a');
+        $this->baseUrl  = $baseUrl??$this->baseUrl;
         $_SESSION['expire_in'] = 0;
+        
     }
-
-    /**
-     * 设置应用ID
-     *
-     * @param AppId 应用ID
-     */
-    public function setAppId($appid)
-    {
-        $this->appid = $appid;
-    }
-
-    /**
-     * 设置应用密匙
-     *
-     * @param Appsecret 应用密匙
-     */
-    public function setAppSecret($appsecret)
-    {
-        $this->appsecret = $appsecret;
-    }
-    
-    /**
-     * 设置接口所属应用
-     *
-     * @param app 应用id
-     */
-    public function setApp($app)
-    {
-        $this->app = $app;
-    }
-    
-    /**
-     * 设置用户角色，登录时候用
-     *
-     * @param role 用户角色
-     */
-    public function setRole($role)
-    {
-        $this->role = $role;
-    }
-    
-    /**
-     * 设置日志开关
-     *
-     * @param enabeLog 应用密匙
-     */
-    public function setEnabeLog($enabeLog)
-    {
-        $this->enabeLog = $enabeLog;
-    }
-
-    
     /**
      * 主帐号鉴权
      */
     public function accAuth()
     {
 
-        if ($this->appsecret == "") {
+        if ($this->key == "") {
             $data = new \stdClass();
             $data->errcode = '1003';
-            $data->errmsg = '应用密钥为空';
+            $data->errmsg = '应用key为空';
             return $data;
         }
         if ($this->appid == "") {
@@ -116,6 +68,8 @@ class Center
             fwrite($this->Handle, $log . "\n");
         }
     }
+    
+    
 
     /**
      * 发起HTTPS请求
@@ -127,7 +81,6 @@ class Center
      */
     public function curl($url, $data=[], $header, $post = 1)
     {
-        
         if($post==1){
            $result= $this->curl_post($url, $data,$header);
         }else{
@@ -140,7 +93,8 @@ class Center
     * curl请求
      * @param url 请求路径
     */
-    function curl_post($url, $postFields,$header) {
+    function curl_post($url, $postFields,$header) 
+    {
     //初始化curl
         //初始化curl
         $ch = curl_init();
@@ -172,7 +126,8 @@ class Center
      * 
      * @return null
      */
-    function curl_get($url,$header) {
+    function curl_get($url,$header) 
+    {
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_TIMEOUT, 500);
@@ -223,51 +178,7 @@ class Center
         return $result;
     }
 
-    /**
-     * 账号密码登录
-     * 
-     * @param username String	kewo （用户名）
-     * @param password	String	523d47es5s4df2s8ef3sd2fd1d48rsde (md5加密后的小写32位值)
-     */
-    public function loginByAccount($username,$password,$role=3,$version=1)
-    {
-        //鉴权信息验证，对必选参数进行判空。
-        $auth = $this->accAuth();
-        if ($auth != "") {
-            return $auth;
-        }
-        //生成token
-
-        //检测用户角色
-        $role || $role = $this->role;
-        $this->showlog("login by account, request datetime = " . date('y/m/d h:i') . "\n");
-
-        // 生成请求URL
-        $url = $this->baseUrl."loginIn";
-
-        // 生成包头
-        $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
-
-        //数据
-        $time = time();
-        $data['appid']=$this->appid;
-        $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-
-        $data['username']=$username;
-        $data['password']=md5($password);
-        $data['role']=$role;
-        $data['app']=$this->app;
-        $data['type']=1;
-
-        // 发送请求
-        $result = $this->curl($url, $data, $header, 0);
-        $this->showlog("response body = " . $result . "\r\n");
-        $datas = json_decode($result, true);
-
-        return $datas;
-    }
-    
+ 
     /**
      * 微信登录获取页面
      * @param type int	1PC 2手机
@@ -285,9 +196,10 @@ class Center
         }
         
         //检测用户角色
-        $role || $role = $this->role;
+        $role =  isset($role)?$role:$this->role;
+        
         $this->showlog("login by wechat,get login page, request datetime = " . date('y/m/d h:i') . "\n");
-
+        
         // 生成请求URL
         $url = $this->baseUrl."loginIn";
 
@@ -295,21 +207,24 @@ class Center
         $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
 
         //数据
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-        $data['app']=$this->app;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time();
         
+        $data['app']=$this->app;
         $data['role']=$role;
         $data['type']=3;
         $data['login']=$type;
         if($type==4){
             $data['redirectTo']=$redirectTo;
         }
-        
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
+       
         // 发送请求
         $result = $this->curl($url, $data, $header, 0);
+       
         $this->showlog("response body = " . $result . "\r\n");
         $datas = json_decode($result, true);
 
@@ -339,15 +254,18 @@ class Center
         $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
 
         //数据
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time(); 
+        
         $data['app']=$this->app;
         $data['mobile']=$mobile;
-        
         $data['role']=$role;
         $data['type']=1;
+        
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
 
         // 发送请求
         $result = $this->curl($url, $data, $header, 1);
@@ -380,16 +298,19 @@ class Center
         $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
 
         //数据
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-        $data['app']=$this->app;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time(); 
         
+        $data['app']=$this->app;
         $data['mobile']=$mobile;
         $data['role']=$role;
         $data['type']=2;
         $data['login']=3;
+        
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
 
         // 发送请求
         $result = $this->curl($url, $data, $header, 1);
@@ -423,21 +344,24 @@ class Center
         $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
 
         //数据
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-        $data['app']=$this->app;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time(); 
         
+        
+        $data['app']=$this->app;
         $data['verifyCode']=$verifyCode;
         $data['role']=$role;
         $data['type']=3;
-        //$data['login']=$type==1?2:4;
         $data['login']=2;
-       
+        
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
+
         // 发送请求
         $result = $this->curl($url, $data, $header, 0);
-       
+       //dump($result);
         $this->showlog("response body = " . $result . "\r\n");
         $datas = json_decode($result, true);
 
@@ -445,16 +369,16 @@ class Center
     }
      /**
      *  微信/支付宝 支付
-     * @param  payType  string	 payType  支付方式 默认1 1微信电脑 2微信手机   3支付宝电脑 4支付宝手机 5免费
-     * @param data  array	 数组
-      * @param  type             String         交易类型 NATIVE或JSAPI 默认 NATIVE
+     * @param  payType          String	       支付方式 默认1 1微信电脑 2微信手机   3支付宝电脑 4支付宝手机 5免费
+     * @param  data             Array	       参数数组
+    *  @param  type             String         交易类型 NATIVE或JSAPI 默认 NATIVE
      * @param  body             String         商品描述
      * @param  usernumber       String         usernumber
      * @param  out_trade_no     String         商户订单号
      * @param  total_fee        Int            标价金额 单位为元
-     * @param  spbill_create_ip	 String         终端ip地址
-     * @param  notify_url	 String         支付成功异步通知地址
-     * @param  product_id	 Int            商品id
+     * @param  spbill_create_ip	String         终端ip地址
+     * @param  notify_url	    String         支付成功异步通知地址
+     * @param  product_id	    Int            商品id
      */
     public function createOrder($payType,$data,$role=3,$version=1)
     {
@@ -504,18 +428,21 @@ class Center
         }
         
         //公共参数
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-        $data['app']=$this->app;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time(); ;
+        
         //接口参数
+        $data['app']=$this->app;
         $data['type']=$type;
         $data['data']=$data;
         
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
         // 发送请求
         $result = $this->curl($url, $data, $header, 1);
-        
+       
         $this->showlog("response body = " . $result . "\r\n");
         
         $datas = json_decode($result, true);
@@ -559,14 +486,17 @@ class Center
         $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
 
         //数据
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-        $data['app']=$this->app;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time();
         
+        $data['app']=$this->app;
         $data['role']=$role;
         $data['number']=$number;
+        
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
         
         
         //发送请求
@@ -579,10 +509,10 @@ class Center
     }
     /*
      * 同课窝中心同步数据
-     * @param mobile   string	 手机号 
-     * 
+     * @param mobile    string	 手机号 
+     * @param unionid   string	 unionid 
      */
-    public function changeInfo($number,$mobile,$role=3,$version=1)
+    public function changeInfo($unionid,$mobile,$role=3,$version=1)
     {
         //鉴权信息验证，对必选参数进行判空。
         $auth = $this->accAuth();
@@ -601,23 +531,29 @@ class Center
         $header = array("Accept:application/json", "Content-Type:application/json;charset=utf-8");
 
         //数据
-        $time = time();
-        $data['appid']=$this->appid;
         $data['version']=$version;
-        $data['token']=md5($this->appsecret.$time).$time;
-        $data['app']=$this->app;
+        $data['appid']=$this->appid;
+        $data['noncestr']=$this->noncestr;
+        $data['timestamp']=time(); 
         
+        $data['app']=$this->app;
         $data['role']=$role;
         $data['mobile']=$mobile;
-        $data['number']=$number;
+        $data['unionid']=$unionid;
         
+        $key=$this->key;
+        $data['sign']=makeSign($data,$key);
+       
         //发送请求
         $result = $this->curl($url, $data, $header, 1);
         
         $this->showlog("response body = " . $result . "\r\n");
+         
         $datas = json_decode($result, true);
 
         return $datas;
     }
+    
+    
 
 }
