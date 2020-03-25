@@ -25,9 +25,9 @@ class Center
         $this->noncestr = rand(1000,9999).time();
         $this->app      = $app;
         $this->key      = $key;
-        $this->role     = $role??$this->role;
+        $this->role     = $role?:$this->role;
         $this->Handle   = fopen($this->Filename, 'a');
-        $this->baseUrl  = $baseUrl??$this->baseUrl;
+        $this->baseUrl  = $baseUrl?:$this->baseUrl;
         $_SESSION['expire_in'] = 0;
         
     }
